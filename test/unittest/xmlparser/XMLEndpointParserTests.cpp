@@ -12,34 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <fstream>
-#include <sstream>
-#include <string>
-
-#include <gtest/gtest.h>
-#include <tinyxml2.h>
-
-#include <fastdds/dds/log/FileConsumer.hpp>
+#include <fastrtps/rtps/builtin/data/WriterProxyData.h>
+#include <fastrtps/rtps/builtin/data/ReaderProxyData.h>
+#include <fastrtps/xmlparser/XMLEndpointParser.h>
 #include <fastdds/dds/log/Log.hpp>
 #include <fastdds/dds/log/OStreamConsumer.hpp>
+#include <fastdds/dds/log/FileConsumer.hpp>
 #include <fastdds/dds/log/StdoutConsumer.hpp>
 #include <fastdds/dds/log/StdoutErrConsumer.hpp>
-
-#include <rtps/builtin/data/ReaderProxyData.hpp>
-#include <rtps/builtin/data/WriterProxyData.hpp>
-#include <xmlparser/XMLEndpointParser.h>
-
 #include "../logging/mock/MockConsumer.h"
 
-using namespace eprosima::fastdds;
-using namespace eprosima::fastdds::rtps;
+#include <tinyxml2.h>
+#include <gtest/gtest.h>
+
+#include <string>
+#include <fstream>
+#include <sstream>
+
+using namespace eprosima::fastrtps;
+using namespace eprosima::fastrtps::rtps;
 using namespace ::testing;
 
-using eprosima::fastdds::xmlparser::XMLP_ret;
-using eprosima::fastdds::xmlparser::XMLEndpointParser;
-using eprosima::fastdds::xmlparser::StaticRTPSParticipantInfo;
-using eprosima::fastdds::rtps::ReaderProxyData;
-using eprosima::fastdds::rtps::WriterProxyData;
+using eprosima::fastrtps::xmlparser::XMLP_ret;
+using eprosima::fastrtps::xmlparser::XMLEndpointParser;
+using eprosima::fastrtps::xmlparser::StaticRTPSParticipantInfo;
+using eprosima::fastrtps::rtps::ReaderProxyData;
+using eprosima::fastrtps::rtps::WriterProxyData;
 
 using eprosima::fastdds::dds::Log;
 using eprosima::fastdds::dds::LogConsumer;
@@ -124,7 +122,7 @@ TEST_F(XMLEndpointParserTests, loadXMLNode)
                         <reader>\
                             <userId>3</userId>\
                             <entityID>4</entityID>\
-                            <expects_inline_qos>true</expects_inline_qos>\
+                            <expectsInlineQos>true</expectsInlineQos>\
                             <topicName>HelloWorldTopic</topicName>\
                             <topicDataType>HelloWorld</topicDataType>\
                             <topicKind>WITH_KEY</topicKind>\
@@ -207,7 +205,7 @@ TEST_F(XMLEndpointParserTests, loadXMLParticipantEndpoint)
                     <reader>\
                         <userId>3</userId>\
                         <entityID>4</entityID>\
-                        <expects_inline_qos>true</expects_inline_qos>\
+                        <expectsInlineQos>true</expectsInlineQos>\
                         <topicName>HelloWorldTopic</topicName>\
                         <topicDataType>HelloWorld</topicDataType>\
                         <topicKind>WITH_KEY</topicKind>\
@@ -299,7 +297,7 @@ TEST_F(XMLEndpointParserTests, loadXMLReaderEndpoint)
                 <reader>\
                     <userId>3</userId>\
                     <entityID>4</entityID>\
-                    <expects_inline_qos>true</expects_inline_qos>\
+                    <expectsInlineQos>true</expectsInlineQos>\
                     <topicName>HelloWorldTopic</topicName>\
                     <topicDataType>HelloWorld</topicDataType>\
                     <topicKind>WITH_KEY</topicKind>\
@@ -341,10 +339,10 @@ TEST_F(XMLEndpointParserTests, loadXMLReaderEndpoint)
         EXPECT_EQ(pdata->m_readers[0]->remote_locators().multicast[0],  multi_loc);
 
         // qos
-        EXPECT_EQ(pdata->m_readers[0]->m_qos.m_reliability.kind,  dds::BEST_EFFORT_RELIABILITY_QOS);
-        EXPECT_EQ(pdata->m_readers[0]->m_qos.m_durability.kind,  dds::VOLATILE_DURABILITY_QOS);
-        EXPECT_EQ(pdata->m_readers[0]->m_qos.m_ownership.kind,  dds::SHARED_OWNERSHIP_QOS);
-        EXPECT_EQ(pdata->m_readers[0]->m_qos.m_liveliness.kind,  dds::AUTOMATIC_LIVELINESS_QOS);
+        EXPECT_EQ(pdata->m_readers[0]->m_qos.m_reliability.kind,  BEST_EFFORT_RELIABILITY_QOS);
+        EXPECT_EQ(pdata->m_readers[0]->m_qos.m_durability.kind,  VOLATILE_DURABILITY_QOS);
+        EXPECT_EQ(pdata->m_readers[0]->m_qos.m_ownership.kind,  SHARED_OWNERSHIP_QOS);
+        EXPECT_EQ(pdata->m_readers[0]->m_qos.m_liveliness.kind,  AUTOMATIC_LIVELINESS_QOS);
         EXPECT_TRUE(pdata->m_readers[0]->m_qos.m_disablePositiveACKs.enabled);
 
         // Delete the ReaderProxyData created inside loadXMLParticipantEndpoint
@@ -467,7 +465,7 @@ TEST_F(XMLEndpointParserTests, loadXMLReaderEndpoint)
         {
             "userId",
             "entityID",
-            "expects_inline_qos",
+            "expectsInlineQos",
             "topicName",
             "topicDataType",
             "topicKind",
@@ -545,7 +543,7 @@ TEST_F(XMLEndpointParserTests, loadXMLWriterEndpoint)
                 <writer>\
                     <userId>3</userId>\
                     <entityID>4</entityID>\
-                    <expects_inline_qos>true</expects_inline_qos>\
+                    <expectsInlineQos>true</expectsInlineQos>\
                     <topicName>HelloWorldTopic</topicName>\
                     <topicDataType>HelloWorld</topicDataType>\
                     <topicKind>NO_KEY</topicKind>\
@@ -589,10 +587,10 @@ TEST_F(XMLEndpointParserTests, loadXMLWriterEndpoint)
         EXPECT_EQ(pdata->m_writers[0]->remote_locators().multicast[0],  multi_loc);
 
         // qos
-        EXPECT_EQ(pdata->m_writers[0]->m_qos.m_reliability.kind,  dds::BEST_EFFORT_RELIABILITY_QOS);
-        EXPECT_EQ(pdata->m_writers[0]->m_qos.m_durability.kind,  dds::VOLATILE_DURABILITY_QOS);
-        EXPECT_EQ(pdata->m_writers[0]->m_qos.m_ownership.kind,  dds::SHARED_OWNERSHIP_QOS);
-        EXPECT_EQ(pdata->m_writers[0]->m_qos.m_liveliness.kind,  dds::AUTOMATIC_LIVELINESS_QOS);
+        EXPECT_EQ(pdata->m_writers[0]->m_qos.m_reliability.kind,  BEST_EFFORT_RELIABILITY_QOS);
+        EXPECT_EQ(pdata->m_writers[0]->m_qos.m_durability.kind,  VOLATILE_DURABILITY_QOS);
+        EXPECT_EQ(pdata->m_writers[0]->m_qos.m_ownership.kind,  SHARED_OWNERSHIP_QOS);
+        EXPECT_EQ(pdata->m_writers[0]->m_qos.m_liveliness.kind,  AUTOMATIC_LIVELINESS_QOS);
         EXPECT_TRUE(pdata->m_writers[0]->m_qos.m_disablePositiveACKs.enabled);
         EXPECT_EQ(pdata->m_writers[0]->m_qos.m_disablePositiveACKs.duration.seconds, 300);
         EXPECT_EQ(pdata->m_writers[0]->m_qos.m_disablePositiveACKs.duration.nanosec, 0u);
@@ -717,7 +715,7 @@ TEST_F(XMLEndpointParserTests, loadXMLWriterEndpoint)
         {
             "userId",
             "entityID",
-            "expects_inline_qos",
+            "expectsInlineQos",
             "topicName",
             "topicDataType",
             "topicKind",

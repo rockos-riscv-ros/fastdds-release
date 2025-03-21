@@ -19,18 +19,17 @@
 #include <fastdds/dds/core/condition/GuardCondition.hpp>
 #include <fastdds/dds/core/condition/StatusCondition.hpp>
 #include <fastdds/dds/core/condition/WaitSet.hpp>
-#include <fastdds/dds/domain/DomainParticipantFactory.hpp>
-#include <fastdds/LibrarySettings.hpp>
-#include <fastdds/rtps/common/CDRMessage_t.hpp>
-#include <fastdds/rtps/transport/test_UDPv4TransportDescriptor.hpp>
-#include <fastdds/rtps/transport/UDPv4TransportDescriptor.hpp>
+#include <fastdds/rtps/transport/test_UDPv4TransportDescriptor.h>
+#include <fastrtps/xmlparser/XMLProfileManager.h>
 
-#include "../utils/filter_helpers.hpp"
 #include "BlackboxTests.hpp"
 #include "PubSubReader.hpp"
 #include "PubSubWriter.hpp"
 
-using namespace eprosima::fastdds::rtps;
+using namespace eprosima::fastrtps::rtps;
+using namespace eprosima::fastrtps::xmlparser;
+
+using test_UDPv4TransportDescriptor = eprosima::fastdds::rtps::test_UDPv4TransportDescriptor;
 
 #define INCOMPATIBLE_TEST_TOPIC_NAME std::string( \
         std::string("incompatible_") + TEST_TOPIC_NAME)
@@ -49,13 +48,13 @@ public:
 
     void SetUp() override
     {
-        eprosima::fastdds::LibrarySettings library_settings;
+        eprosima::fastrtps::LibrarySettingsAttributes library_settings;
         switch (GetParam())
         {
             case INTRAPROCESS:
                 library_settings.intraprocess_delivery =
-                        eprosima::fastdds::IntraprocessDeliveryType::INTRAPROCESS_FULL;
-                eprosima::fastdds::dds::DomainParticipantFactory::get_instance()->set_library_settings(library_settings);
+                        eprosima::fastrtps::IntraprocessDeliveryType::INTRAPROCESS_FULL;
+                XMLProfileManager::library_settings(library_settings);
                 break;
             case DATASHARING:
                 enable_datasharing = true;
@@ -68,12 +67,12 @@ public:
 
     void TearDown() override
     {
-        eprosima::fastdds::LibrarySettings library_settings;
+        eprosima::fastrtps::LibrarySettingsAttributes library_settings;
         switch (GetParam())
         {
             case INTRAPROCESS:
-                library_settings.intraprocess_delivery = eprosima::fastdds::IntraprocessDeliveryType::INTRAPROCESS_OFF;
-                eprosima::fastdds::dds::DomainParticipantFactory::get_instance()->set_library_settings(library_settings);
+                library_settings.intraprocess_delivery = eprosima::fastrtps::IntraprocessDeliveryType::INTRAPROCESS_OFF;
+                XMLProfileManager::library_settings(library_settings);
                 break;
             case DATASHARING:
                 enable_datasharing = false;
@@ -691,7 +690,7 @@ void sample_lost_test_dw_init(
     testTransport->sendBufferSize = SAMPLE_LOST_TEST_BUFFER_SIZE;
     testTransport->receiveBufferSize = SAMPLE_LOST_TEST_BUFFER_SIZE;
 
-    testTransport->drop_data_messages_filter_ = [](eprosima::fastdds::rtps::CDRMessage_t& msg)-> bool
+    testTransport->drop_data_messages_filter_ = [](eprosima::fastrtps::rtps::CDRMessage_t& msg)-> bool
             {
                 uint32_t old_pos = msg.pos;
 
@@ -702,17 +701,9 @@ void sample_lost_test_dw_init(
 
                 msg.pos += 2; // flags
                 msg.pos += 2; // octets to inline quos
-                readerID = eprosima::fastdds::helpers::cdr_parse_entity_id(
-                    (char*)&msg.buffer[msg.pos]);
-                msg.pos += 4;
-                writerID = eprosima::fastdds::helpers::cdr_parse_entity_id(
-                    (char*)&msg.buffer[msg.pos]);
-                msg.pos += 4;
-                sn.high = (int32_t)eprosima::fastdds::helpers::cdr_parse_u32(
-                    (char*)&msg.buffer[msg.pos]);
-                msg.pos += 4;
-                sn.low = eprosima::fastdds::helpers::cdr_parse_u32(
-                    (char*)&msg.buffer[msg.pos]);
+                CDRMessage::readEntityId(&msg, &readerID);
+                CDRMessage::readEntityId(&msg, &writerID);
+                CDRMessage::readSequenceNumber(&msg, &sn);
 
                 // restore buffer pos
                 msg.pos = old_pos;
@@ -733,7 +724,7 @@ void sample_lost_test_dw_init(
 
                 return false;
             };
-    testTransport->drop_data_frag_messages_filter_ = [](eprosima::fastdds::rtps::CDRMessage_t& msg)-> bool
+    testTransport->drop_data_frag_messages_filter_ = [](eprosima::fastrtps::rtps::CDRMessage_t& msg)-> bool
             {
                 uint32_t old_pos = msg.pos;
 
@@ -745,21 +736,10 @@ void sample_lost_test_dw_init(
 
                 msg.pos += 2; // flags
                 msg.pos += 2; // octets to inline quos
-                readerID = eprosima::fastdds::helpers::cdr_parse_entity_id(
-                    (char*)&msg.buffer[msg.pos]);
-                msg.pos += 4;
-                writerID = eprosima::fastdds::helpers::cdr_parse_entity_id(
-                    (char*)&msg.buffer[msg.pos]);
-                msg.pos += 4;
-                sn.high = (int32_t)eprosima::fastdds::helpers::cdr_parse_u32(
-                    (char*)&msg.buffer[msg.pos]);
-                msg.pos += 4;
-                sn.low = eprosima::fastdds::helpers::cdr_parse_u32(
-                    (char*)&msg.buffer[msg.pos]);
-                msg.pos += 4;
-
-                first_fragment = eprosima::fastdds::helpers::cdr_parse_u32(
-                    (char*)&msg.buffer[msg.pos]);
+                CDRMessage::readEntityId(&msg, &readerID);
+                CDRMessage::readEntityId(&msg, &writerID);
+                CDRMessage::readSequenceNumber(&msg, &sn);
+                CDRMessage::readUInt32(&msg, &first_fragment);
 
                 // restore buffer pos
                 msg.pos = old_pos;
@@ -796,13 +776,7 @@ void sample_lost_test_dr_init(
         PubSubReader<T>& reader,
         std::function<void(const eprosima::fastdds::dds::SampleLostStatus& status)> functor)
 {
-    auto udp_transport = std::make_shared<UDPv4TransportDescriptor>();
-    udp_transport->sendBufferSize = SAMPLE_LOST_TEST_BUFFER_SIZE;
-    udp_transport->receiveBufferSize = SAMPLE_LOST_TEST_BUFFER_SIZE;
-
-    reader.disable_builtin_transport()
-            .add_user_transport_to_pparams(udp_transport)
-            .sample_lost_status_functor(functor)
+    reader.sample_lost_status_functor(functor)
             .init();
 
     ASSERT_TRUE(reader.isInitialized());
@@ -1246,9 +1220,9 @@ TEST(DDSStatus, sample_lost_re_dw_re_persistence_dr)
         PubSubWriter<HelloWorldPubSubType> writer(TEST_TOPIC_NAME);
 
         writer.reliability(eprosima::fastdds::dds::RELIABLE_RELIABILITY_QOS)
-                .make_transient(db_file_name, "67.62.79.64.75.62.5f.60.75.72.73.5f|76.65.79.74");
+                .make_persistent(db_file_name, "67.62.79.64.75.62.5f.60.75.72.73.5f|76.65.79.74");
         reader.reliability(eprosima::fastdds::dds::RELIABLE_RELIABILITY_QOS)
-                .make_transient(db_file_name, "67.62.79.64.75.62.5f.60.75.72.73.5f|76.65.79.72");
+                .make_persistent(db_file_name, "67.62.79.64.75.62.5f.60.75.72.73.5f|76.65.79.72");
 
 
         std::mutex test_step_mtx;
@@ -1651,9 +1625,9 @@ TEST(DDSStatus, sample_lost_waitset_re_dw_re_persistence_dr)
         PubSubWriter<HelloWorldPubSubType> writer(TEST_TOPIC_NAME);
 
         writer.reliability(eprosima::fastdds::dds::RELIABLE_RELIABILITY_QOS)
-                .make_transient(db_file_name, "67.62.79.64.75.62.5f.60.75.72.73.5f|76.65.79.74");
+                .make_persistent(db_file_name, "67.62.79.64.75.62.5f.60.75.72.73.5f|76.65.79.74");
         reader.reliability(eprosima::fastdds::dds::RELIABLE_RELIABILITY_QOS)
-                .make_transient(db_file_name, "67.62.79.64.75.62.5f.60.75.72.73.5f|76.65.79.72");
+                .make_persistent(db_file_name, "67.62.79.64.75.62.5f.60.75.72.73.5f|76.65.79.72");
 
         std::mutex test_step_mtx;
         std::condition_variable test_step_cv;
@@ -1718,7 +1692,7 @@ void sample_rejected_test_dw_init(
 
     auto testTransport = std::make_shared<test_UDPv4TransportDescriptor>();
     testTransport->drop_data_messages_filter_ =
-            [](eprosima::fastdds::rtps::CDRMessage_t& msg)-> bool
+            [](eprosima::fastrtps::rtps::CDRMessage_t& msg)-> bool
             {
                 uint32_t old_pos = msg.pos;
 
@@ -1728,17 +1702,9 @@ void sample_rejected_test_dw_init(
 
                 msg.pos += 2; // flags
                 msg.pos += 2; // octets to inline quos
-                readerID = eprosima::fastdds::helpers::cdr_parse_entity_id(
-                    (char*)&msg.buffer[msg.pos]);
-                msg.pos += 4;
-                writerID = eprosima::fastdds::helpers::cdr_parse_entity_id(
-                    (char*)&msg.buffer[msg.pos]);
-                msg.pos += 4;
-                sn.high = (int32_t)eprosima::fastdds::helpers::cdr_parse_u32(
-                    (char*)&msg.buffer[msg.pos]);
-                msg.pos += 4;
-                sn.low = eprosima::fastdds::helpers::cdr_parse_u32(
-                    (char*)&msg.buffer[msg.pos]);
+                CDRMessage::readEntityId(&msg, &readerID);
+                CDRMessage::readEntityId(&msg, &writerID);
+                CDRMessage::readSequenceNumber(&msg, &sn);
 
                 // restore buffer pos
                 msg.pos = old_pos;
@@ -1911,7 +1877,7 @@ TEST(DDSStatus, sample_rejected_nokey_large_re_dw_re_dr_keep_all_max_samples_2)
 
     writer.history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
             .asynchronously(eprosima::fastdds::dds::PublishModeQosPolicyKind::ASYNCHRONOUS_PUBLISH_MODE)
-            .add_flow_controller_descriptor_to_pparams( // Avoid losing more frangments
+            .add_throughput_controller_descriptor_to_pparams( // Avoid losing more frangments
         eprosima::fastdds::rtps::FlowControllerSchedulerPolicy::FIFO, 132000, 50);
     reader.history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
             .resource_limits_max_samples(2);
@@ -1957,7 +1923,7 @@ TEST(DDSStatus, sample_rejected_key_large_re_dw_re_dr_keep_all_max_samples_2)
 
     writer.history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
             .asynchronously(eprosima::fastdds::dds::PublishModeQosPolicyKind::ASYNCHRONOUS_PUBLISH_MODE)
-            .add_flow_controller_descriptor_to_pparams( // Avoid losing more frangments
+            .add_throughput_controller_descriptor_to_pparams( // Avoid losing more frangments
         eprosima::fastdds::rtps::FlowControllerSchedulerPolicy::FIFO, 132000, 50);
     reader.history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
             .resource_limits_max_samples(2)
@@ -2105,7 +2071,7 @@ TEST(DDSStatus, sample_rejected_nokey_large_re_dw_re_dr_keep_last_max_samples_2)
 
     writer.history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
             .asynchronously(eprosima::fastdds::dds::PublishModeQosPolicyKind::ASYNCHRONOUS_PUBLISH_MODE)
-            .add_flow_controller_descriptor_to_pparams( // Avoid losing more frangments
+            .add_throughput_controller_descriptor_to_pparams( // Avoid losing more frangments
         eprosima::fastdds::rtps::FlowControllerSchedulerPolicy::FIFO, 132000, 50);
     reader.history_kind(eprosima::fastdds::dds::KEEP_LAST_HISTORY_QOS)
             .resource_limits_max_samples(2);
@@ -2151,7 +2117,7 @@ TEST(DDSStatus, sample_rejected_key_large_re_dw_re_dr_keep_last_max_samples_2)
 
     writer.history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
             .asynchronously(eprosima::fastdds::dds::PublishModeQosPolicyKind::ASYNCHRONOUS_PUBLISH_MODE)
-            .add_flow_controller_descriptor_to_pparams( // Avoid losing more frangments
+            .add_throughput_controller_descriptor_to_pparams( // Avoid losing more frangments
         eprosima::fastdds::rtps::FlowControllerSchedulerPolicy::FIFO, 132000, 50);
     reader.history_kind(eprosima::fastdds::dds::KEEP_LAST_HISTORY_QOS)
             .resource_limits_max_samples(2)
@@ -2298,7 +2264,7 @@ TEST(DDSStatus, sample_rejected_nokey_large_re_dw_re_dr_keep_all_max_samples_per
 
     writer.history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
             .asynchronously(eprosima::fastdds::dds::PublishModeQosPolicyKind::ASYNCHRONOUS_PUBLISH_MODE)
-            .add_flow_controller_descriptor_to_pparams( // Avoid losing more frangments
+            .add_throughput_controller_descriptor_to_pparams( // Avoid losing more frangments
         eprosima::fastdds::rtps::FlowControllerSchedulerPolicy::FIFO, 132000, 50);
     reader.history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
             .resource_limits_max_samples_per_instance(1);
@@ -2337,7 +2303,7 @@ TEST(DDSStatus, sample_rejected_key_large_re_dw_re_dr_keep_all_max_samples_per_i
 
     writer.history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
             .asynchronously(eprosima::fastdds::dds::PublishModeQosPolicyKind::ASYNCHRONOUS_PUBLISH_MODE)
-            .add_flow_controller_descriptor_to_pparams( // Avoid losing more frangments
+            .add_throughput_controller_descriptor_to_pparams( // Avoid losing more frangments
         eprosima::fastdds::rtps::FlowControllerSchedulerPolicy::FIFO, 132000, 50);
     reader.history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
             .resource_limits_max_samples_per_instance(1);
@@ -2475,7 +2441,7 @@ TEST(DDSStatus, sample_rejected_nokey_large_re_dw_re_dr_keep_last_max_samples_pe
 
     writer.history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
             .asynchronously(eprosima::fastdds::dds::PublishModeQosPolicyKind::ASYNCHRONOUS_PUBLISH_MODE)
-            .add_flow_controller_descriptor_to_pparams( // Avoid losing more frangments
+            .add_throughput_controller_descriptor_to_pparams( // Avoid losing more frangments
         eprosima::fastdds::rtps::FlowControllerSchedulerPolicy::FIFO, 132000, 50);
     reader.history_kind(eprosima::fastdds::dds::KEEP_LAST_HISTORY_QOS)
             .resource_limits_max_samples_per_instance(1);
@@ -2514,7 +2480,7 @@ TEST(DDSStatus, sample_rejected_key_large_re_dw_re_dr_keep_last_max_samples_per_
 
     writer.history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
             .asynchronously(eprosima::fastdds::dds::PublishModeQosPolicyKind::ASYNCHRONOUS_PUBLISH_MODE)
-            .add_flow_controller_descriptor_to_pparams( // Avoid losing more frangments
+            .add_throughput_controller_descriptor_to_pparams( // Avoid losing more frangments
         eprosima::fastdds::rtps::FlowControllerSchedulerPolicy::FIFO, 132000, 50);
     reader.history_kind(eprosima::fastdds::dds::KEEP_LAST_HISTORY_QOS)
             .resource_limits_max_samples_per_instance(1);
@@ -2645,7 +2611,7 @@ TEST(DDSStatus, sample_rejected_nokey_large_re_dw_re_dr_keep_all_max_instances_1
 
     writer.history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
             .asynchronously(eprosima::fastdds::dds::PublishModeQosPolicyKind::ASYNCHRONOUS_PUBLISH_MODE)
-            .add_flow_controller_descriptor_to_pparams( // Avoid losing more frangments
+            .add_throughput_controller_descriptor_to_pparams( // Avoid losing more frangments
         eprosima::fastdds::rtps::FlowControllerSchedulerPolicy::FIFO, 132000, 50);
     reader.history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
             .resource_limits_max_instances(1);
@@ -2684,7 +2650,7 @@ TEST(DDSStatus, sample_rejected_key_large_re_dw_re_dr_keep_all_max_instances_1)
 
     writer.history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
             .asynchronously(eprosima::fastdds::dds::PublishModeQosPolicyKind::ASYNCHRONOUS_PUBLISH_MODE)
-            .add_flow_controller_descriptor_to_pparams( // Avoid losing more frangments
+            .add_throughput_controller_descriptor_to_pparams( // Avoid losing more frangments
         eprosima::fastdds::rtps::FlowControllerSchedulerPolicy::FIFO, 132000, 50);
     reader.history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
             .resource_limits_max_instances(1);
@@ -2826,7 +2792,7 @@ TEST(DDSStatus, sample_rejected_nokey_large_re_dw_re_dr_keep_last_max_instances_
 
     writer.history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
             .asynchronously(eprosima::fastdds::dds::PublishModeQosPolicyKind::ASYNCHRONOUS_PUBLISH_MODE)
-            .add_flow_controller_descriptor_to_pparams( // Avoid losing more frangments
+            .add_throughput_controller_descriptor_to_pparams( // Avoid losing more frangments
         eprosima::fastdds::rtps::FlowControllerSchedulerPolicy::FIFO, 132000, 50);
     reader.history_kind(eprosima::fastdds::dds::KEEP_LAST_HISTORY_QOS)
             .resource_limits_max_instances(1);
@@ -2865,7 +2831,7 @@ TEST(DDSStatus, sample_rejected_key_large_re_dw_re_dr_keep_last_max_instances_1)
 
     writer.history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
             .asynchronously(eprosima::fastdds::dds::PublishModeQosPolicyKind::ASYNCHRONOUS_PUBLISH_MODE)
-            .add_flow_controller_descriptor_to_pparams( // Avoid losing more frangments
+            .add_throughput_controller_descriptor_to_pparams( // Avoid losing more frangments
         eprosima::fastdds::rtps::FlowControllerSchedulerPolicy::FIFO, 132000, 50);
     reader.history_kind(eprosima::fastdds::dds::KEEP_LAST_HISTORY_QOS)
             .resource_limits_max_instances(1);
@@ -2918,7 +2884,7 @@ TEST(DDSStatus, sample_rejected_waitset)
     int skip_step = 0;
     auto testTransport = std::make_shared<test_UDPv4TransportDescriptor>();
     testTransport->drop_data_messages_filter_ =
-            [&skip_step](eprosima::fastdds::rtps::CDRMessage_t& msg)-> bool
+            [&skip_step](eprosima::fastrtps::rtps::CDRMessage_t& msg)-> bool
             {
                 uint32_t old_pos = msg.pos;
 
@@ -2929,17 +2895,9 @@ TEST(DDSStatus, sample_rejected_waitset)
 
                 msg.pos += 2; // flags
                 msg.pos += 2; // octets to inline quos
-                readerID = eprosima::fastdds::helpers::cdr_parse_entity_id(
-                    (char*)&msg.buffer[msg.pos]);
-                msg.pos += 4;
-                writerID = eprosima::fastdds::helpers::cdr_parse_entity_id(
-                    (char*)&msg.buffer[msg.pos]);
-                msg.pos += 4;
-                sn.high = (int32_t)eprosima::fastdds::helpers::cdr_parse_u32(
-                    (char*)&msg.buffer[msg.pos]);
-                msg.pos += 4;
-                sn.low = eprosima::fastdds::helpers::cdr_parse_u32(
-                    (char*)&msg.buffer[msg.pos]);
+                CDRMessage::readEntityId(&msg, &readerID);
+                CDRMessage::readEntityId(&msg, &writerID);
+                CDRMessage::readSequenceNumber(&msg, &sn);
 
                 // restore buffer pos
                 msg.pos = old_pos;
@@ -2983,8 +2941,8 @@ TEST(DDSStatus, sample_rejected_waitset)
             .add_user_transport_to_pparams(testTransport)
             .disable_heartbeat_piggyback(true)
             .asynchronously(eprosima::fastdds::dds::PublishModeQosPolicyKind::ASYNCHRONOUS_PUBLISH_MODE)
-            .add_flow_controller_descriptor_to_pparams( // Be sure are sent in separate submessage each DATA.
-        eprosima::fastdds::rtps::FlowControllerSchedulerPolicy::FIFO, 300, 300) // Be sure the first message is processed before sending the second.
+            .add_throughput_controller_descriptor_to_pparams( // Be sure are sent in separate submessage each DATA.
+        eprosima::fastdds::rtps::FlowControllerSchedulerPolicy::FIFO, 100, 50)
             .init();
 
     reader.history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
@@ -3029,7 +2987,7 @@ void best_effort_on_unack_test_init(
             .history_kind(eprosima::fastdds::dds::KEEP_LAST_HISTORY_QOS)
             .history_depth(1)
             .asynchronously(eprosima::fastdds::dds::PublishModeQosPolicyKind::ASYNCHRONOUS_PUBLISH_MODE)
-            .add_flow_controller_descriptor_to_pparams(
+            .add_throughput_controller_descriptor_to_pparams(
         eprosima::fastdds::rtps::FlowControllerSchedulerPolicy::FIFO, 1, 1000)
             .init();
     ASSERT_TRUE(writer.isInitialized());
@@ -3087,8 +3045,8 @@ TEST(DDSStatus, keyed_best_effort_on_unack_sample_removed)
     auto dummy_data = new KeyedHelloWorldPubSubType();
     eprosima::fastdds::dds::InstanceHandle_t handle_odd;
     eprosima::fastdds::dds::InstanceHandle_t handle_even;
-    dummy_data->compute_key(&data.front(), handle_even);
-    dummy_data->compute_key(&data.back(), handle_odd);
+    dummy_data->getKey(&data.front(), &handle_even);
+    dummy_data->getKey(&data.back(), &handle_odd);
 
     reader.startReception(data);
     writer.send(data);
@@ -3113,7 +3071,7 @@ void reliable_on_unack_test_init(
         PubSubReader<T>& reader)
 {
     auto test_transport = std::make_shared<test_UDPv4TransportDescriptor>();
-    test_transport->drop_data_messages_filter_ = [](eprosima::fastdds::rtps::CDRMessage_t& msg)-> bool
+    test_transport->drop_data_messages_filter_ = [](eprosima::fastrtps::rtps::CDRMessage_t& msg)-> bool
             {
                 uint32_t old_pos = msg.pos;
 
@@ -3124,14 +3082,8 @@ void reliable_on_unack_test_init(
                 msg.pos += 2; // flags
                 msg.pos += 2; // inline QoS
                 msg.pos += 4; // readerID
-                writerID = eprosima::fastdds::helpers::cdr_parse_entity_id(
-                    (char*)&msg.buffer[msg.pos]);
-                msg.pos += 4;
-                sn.high = (int32_t)eprosima::fastdds::helpers::cdr_parse_u32(
-                    (char*)&msg.buffer[msg.pos]);
-                msg.pos += 4;
-                sn.low = eprosima::fastdds::helpers::cdr_parse_u32(
-                    (char*)&msg.buffer[msg.pos]);
+                CDRMessage::readEntityId(&msg, &writerID);
+                CDRMessage::readSequenceNumber(&msg, &sn);
 
                 // restore buffer pos
                 msg.pos = old_pos;
@@ -3218,7 +3170,7 @@ TEST(DDSStatus, keyed_reliable_on_unack_sample_removed)
 
     auto dummy_data = new KeyedHelloWorldPubSubType();
     eprosima::fastdds::dds::InstanceHandle_t handle;
-    dummy_data->compute_key(&data.back(), handle);
+    dummy_data->getKey(&data.back(), &handle);
 
     reader.startReception(data);
     // To avoid race condition receiving ACK, wait some time between samples
@@ -3311,16 +3263,16 @@ void reliable_disable_acks_on_unack_test_init(
             .history_kind(eprosima::fastdds::dds::KEEP_LAST_HISTORY_QOS)
             .history_depth(1)
             .asynchronously(eprosima::fastdds::dds::PublishModeQosPolicyKind::ASYNCHRONOUS_PUBLISH_MODE)
-            .add_flow_controller_descriptor_to_pparams(
+            .add_throughput_controller_descriptor_to_pparams(
         eprosima::fastdds::rtps::FlowControllerSchedulerPolicy::FIFO, 1, 1000)
-            .keep_duration(eprosima::fastdds::dds::c_TimeInfinite)
+            .keep_duration(eprosima::fastrtps::c_TimeInfinite)
             .init();
     ASSERT_TRUE(writer_1.isInitialized());
 
     writer_2.reliability(eprosima::fastdds::dds::RELIABLE_RELIABILITY_QOS)
             .durability_kind(eprosima::fastdds::dds::TRANSIENT_LOCAL_DURABILITY_QOS)
             .history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
-            .keep_duration(eprosima::fastdds::dds::c_TimeInfinite)
+            .keep_duration(eprosima::fastrtps::c_TimeInfinite)
             .init();
     ASSERT_TRUE(writer_2.isInitialized());
 
@@ -3401,8 +3353,8 @@ TEST(DDSStatus, keyed_reliable_positive_acks_disabled_on_unack_sample_removed)
     auto dummy_data = new KeyedHelloWorldPubSubType();
     eprosima::fastdds::dds::InstanceHandle_t handle_odd;
     eprosima::fastdds::dds::InstanceHandle_t handle_even;
-    dummy_data->compute_key(&data.front(), handle_even);
-    dummy_data->compute_key(&data.back(), handle_odd);
+    dummy_data->getKey(&data.front(), &handle_even);
+    dummy_data->getKey(&data.back(), &handle_odd);
 
     reader.startReception(data);
 
@@ -3437,136 +3389,6 @@ TEST(DDSStatus, keyed_reliable_positive_acks_disabled_on_unack_sample_removed)
 }
 
 /*!
- * Regression Test for 22658: when the entire history is acked in volatile, given that the entries are deleted from the
- * history, check_acked_status satisfies min_low_mark >= get_seq_num_min() because seq_num_min is unknown. This makes
- * try_remove to fail, because it tries to remove changes but there were none. This causes prepare_change to not
- * perform the changes, since the history was full and could not delete any changes.
- */
-
-TEST(DDSStatus, entire_history_acked_volatile_unknown_pointer)
-{
-    PubSubWriter<HelloWorldPubSubType> writer(TEST_TOPIC_NAME);
-    PubSubReader<HelloWorldPubSubType> reader(TEST_TOPIC_NAME);
-
-    writer.reliability(eprosima::fastdds::dds::RELIABLE_RELIABILITY_QOS, eprosima::fastdds::dds::Duration_t (200, 0))
-            .durability_kind(eprosima::fastdds::dds::VOLATILE_DURABILITY_QOS)
-            .history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
-            .resource_limits_max_instances(1)
-            .resource_limits_max_samples(1)
-            .resource_limits_max_samples_per_instance(1)
-            .init();
-    ASSERT_TRUE(writer.isInitialized());
-
-    reader.reliability(eprosima::fastdds::dds::RELIABLE_RELIABILITY_QOS)
-            .durability_kind(eprosima::fastdds::dds::VOLATILE_DURABILITY_QOS)
-            .init();
-    ASSERT_TRUE(reader.isInitialized());
-
-    // Wait for discovery
-    writer.wait_discovery();
-    reader.wait_discovery();
-
-    auto data = default_helloworld_data_generator(2);
-    for (auto sample : data)
-    {
-        // A value of true means that the sample was sent successfully.
-        // This aligns with the expected behaviour of having the history
-        // acknowledged and emptied before the next message.
-        EXPECT_TRUE(writer.send_sample(sample));
-    }
-}
-
-/*¡
- * Regression Test for 22648: on_unacknowledged_sample_removed callback is called when writer with keep all
- * history is used, when the history was full but before max_blocking_time a sample was acknowledged, as is_acked was
- * checked before the waiting time, and is not re-checked. This should not happen.
- */
-TEST(DDSStatus, reliable_keep_all_unack_sample_removed_call)
-{
-    auto test_transport = std::make_shared<test_UDPv4TransportDescriptor>();
-    test_transport->drop_data_messages_filter_ = [](eprosima::fastdds::rtps::CDRMessage_t& msg) -> bool
-            {
-                static std::vector<std::pair<eprosima::fastdds::rtps::SequenceNumber_t,
-                        std::chrono::steady_clock::time_point>> delayed_messages;
-
-                uint32_t old_pos = msg.pos;
-
-                // Parse writer ID and sequence number
-                msg.pos += 2; // flags
-                msg.pos += 2; // inline QoS
-                msg.pos += 4; // reader ID
-                auto writerID = eprosima::fastdds::helpers::cdr_parse_entity_id((char*)&msg.buffer[msg.pos]);
-                msg.pos += 4;
-                eprosima::fastdds::rtps::SequenceNumber_t sn;
-                sn.high = (int32_t)eprosima::fastdds::helpers::cdr_parse_u32((char*)&msg.buffer[msg.pos]);
-                msg.pos += 4;
-                sn.low = eprosima::fastdds::helpers::cdr_parse_u32((char*)&msg.buffer[msg.pos]);
-
-                // Restore buffer position
-                msg.pos = old_pos;
-
-                // Delay logic for user endpoints only
-                if ((writerID.value[3] & 0xC0) == 0) // only user endpoints
-                {
-                    auto now = std::chrono::steady_clock::now();
-                    auto it = std::find_if(delayed_messages.begin(), delayed_messages.end(),
-                                    [&sn](const auto& pair)
-                                    {
-                                        return pair.first == sn;
-                                    });
-
-                    if (it == delayed_messages.end())
-                    {
-                        // If the sequence number is encountered for the first time, start the delay
-                        delayed_messages.emplace_back(sn, now + std::chrono::milliseconds(750)); // Add delay
-                        return true; // Start dropping this message
-                    }
-                    else if (now < it->second)
-                    {
-                        // If the delay period has not elapsed, keep dropping the message
-                        return true;
-                    }
-                    else
-                    {
-                        // Once the delay has elapsed, allow the message to proceed
-                        delayed_messages.erase(it);
-                    }
-                }
-                return false; // Allow message to proceed
-            };
-
-    PubSubWriter<HelloWorldPubSubType> writer(TEST_TOPIC_NAME);
-    PubSubReader<HelloWorldPubSubType> reader(TEST_TOPIC_NAME);
-
-    writer.reliability(eprosima::fastdds::dds::RELIABLE_RELIABILITY_QOS, eprosima::fastdds::dds::Duration_t (200, 0))
-            .history_kind(eprosima::fastdds::dds::KEEP_ALL_HISTORY_QOS)
-            .resource_limits_max_instances(1)
-            .resource_limits_max_samples(1)
-            .resource_limits_max_samples_per_instance(1)
-            .disable_builtin_transport()
-            .add_user_transport_to_pparams(test_transport)
-            .init();
-    ASSERT_TRUE(writer.isInitialized());
-
-    reader.reliability(eprosima::fastdds::dds::RELIABLE_RELIABILITY_QOS)
-            .init();
-    ASSERT_TRUE(reader.isInitialized());
-
-    // Wait for discovery
-    writer.wait_discovery();
-    reader.wait_discovery();
-
-    auto data = default_helloworld_data_generator(2);
-
-    for (auto sample : data)
-    {
-        writer.send_sample(sample);
-    }
-
-    EXPECT_EQ(writer.times_unack_sample_removed(), 0u);
-}
-
-/*!
  * Test that checks with a writer of each type that having the same listener attached, the notified writer in the
  * callback is the corresponding writer that has removed a sample unacknowledged.
  */
@@ -3582,7 +3404,7 @@ TEST(DDSStatus, several_writers_on_unack_sample_removed)
             .history_kind(eprosima::fastdds::dds::KEEP_LAST_HISTORY_QOS)
             .history_depth(1)
             .asynchronously(eprosima::fastdds::dds::PublishModeQosPolicyKind::ASYNCHRONOUS_PUBLISH_MODE)
-            .add_flow_controller_descriptor_to_pparams(
+            .add_throughput_controller_descriptor_to_pparams(
         eprosima::fastdds::rtps::FlowControllerSchedulerPolicy::FIFO, 1, 1000)
             .init();
     ASSERT_TRUE(best_effort_writer.isInitialized());
@@ -3597,9 +3419,9 @@ TEST(DDSStatus, several_writers_on_unack_sample_removed)
             .history_kind(eprosima::fastdds::dds::KEEP_LAST_HISTORY_QOS)
             .history_depth(1)
             .asynchronously(eprosima::fastdds::dds::PublishModeQosPolicyKind::ASYNCHRONOUS_PUBLISH_MODE)
-            .add_flow_controller_descriptor_to_pparams(
+            .add_throughput_controller_descriptor_to_pparams(
         eprosima::fastdds::rtps::FlowControllerSchedulerPolicy::FIFO, 1, 1000)
-            .keep_duration(eprosima::fastdds::dds::c_TimeInfinite)
+            .keep_duration(eprosima::fastrtps::c_TimeInfinite)
             .init();
     ASSERT_TRUE(ack_disabled_writer.isInitialized());
 

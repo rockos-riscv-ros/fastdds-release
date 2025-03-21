@@ -20,7 +20,7 @@
 #ifndef _TEST_BLACKBOX_TCPReqRepHelloWorldRequester_HPP_
 #define _TEST_BLACKBOX_TCPReqRepHelloWorldRequester_HPP_
 
-#include "../../types/HelloWorldPubSubTypes.hpp"
+#include "../../types/HelloWorldPubSubTypes.h"
 
 #include <fastdds/dds/subscriber/DataReader.hpp>
 #include <fastdds/dds/subscriber/DataReaderListener.hpp>
@@ -137,7 +137,7 @@ public:
     }
 
     void newNumber(
-            eprosima::fastdds::rtps::SampleIdentity related_sample_identity,
+            eprosima::fastrtps::rtps::SampleIdentity related_sample_identity,
             uint16_t number);
     void block();
     void wait_discovery(
@@ -196,8 +196,8 @@ private:
     std::condition_variable cvDiscovery_;
     std::atomic<unsigned int> matched_;
     eprosima::fastdds::dds::TypeSupport type_;
-    eprosima::fastdds::rtps::SampleIdentity related_sample_identity_;
-    eprosima::fastdds::rtps::SampleIdentity received_sample_identity_;
+    eprosima::fastrtps::rtps::SampleIdentity related_sample_identity_;
+    eprosima::fastrtps::rtps::SampleIdentity received_sample_identity_;
 };
 
 #endif // _TEST_BLACKBOX_TCPReqRepHelloWorldRequester_HPP_

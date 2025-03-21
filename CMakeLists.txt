@@ -29,9 +29,9 @@ endif()
 ###############################################################################
 # Project                                                                     #
 ###############################################################################
-project(fastdds VERSION "3.1.2" LANGUAGES C CXX)
+project(fastrtps VERSION "2.14.4" LANGUAGES C CXX)
 
-set(PROJECT_NAME_LARGE "Fast DDS")
+set(PROJECT_NAME_LARGE "Fast RTPS")
 string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UPPER)
 
 message(STATUS "Version: ${PROJECT_VERSION}")
@@ -68,10 +68,8 @@ if(MSVC OR MSVC_IDE)
         string(REPLACE "/DNDEBUG" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
     endif()
 else()
-    # Add some generic warnings common to all compilers
     set(CMAKE_CXX_FLAGS
-        "${CMAKE_CXX_FLAGS} -Wall -Wpedantic -Wextra -Wno-unknown-pragmas -Wno-error=deprecated-declarations -Wno-switch-bool")
-    # Add compiler specific options
+        "${CMAKE_CXX_FLAGS} -Wall -pedantic -Wextra -Wno-unknown-pragmas -Wno-error=deprecated-declarations")
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-psabi")
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--no-undefined")
@@ -80,10 +78,6 @@ else()
             set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-builtins")
         endif()
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl")
-    endif()
-
-    if(EPROSIMA_EXTRA_CMAKE_CXX_FLAGS)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EPROSIMA_EXTRA_CMAKE_CXX_FLAGS}")
     endif()
 
     if(EPROSIMA_BUILD)
@@ -184,20 +178,6 @@ if (SANITIZER)
 endif()
 
 ###############################################################################
-# Set warnings as errors if the thread sanitizer is not being used
-###############################################################################
-string(FIND ${CMAKE_CXX_FLAGS} "-fsanitize=thread" SANITIZER_THREAD)
-if (${SANITIZER_THREAD} EQUAL -1)
-    message(STATUS "Setting warnings as errors...")
-    if(MSVC OR MSVC_IDE)
-        add_compile_options(/WX)
-    else()
-        set(CMAKE_CXX_FLAGS
-            "${CMAKE_CXX_FLAGS} -Werror")
-    endif()
-endif()
-
-###############################################################################
 # Installation paths
 ###############################################################################
 option(APPEND_PROJECT_NAME_TO_INCLUDEDIR
@@ -249,12 +229,12 @@ option(BUILD_SHARED_LIBS "Create shared libraries by default" ON)
 ###############################################################################
 include(${PROJECT_SOURCE_DIR}/cmake/common/eprosima_libraries.cmake)
 
-# if we are building Fast DDS as a static library we must load Fast-CDR as one
+# if we are building Fast-DDS as a static library we must load Fast-CDR as one
 if(NOT BUILD_SHARED_LIBS)
     set(FASTDDS_STATIC ON)
 endif()
 
-eprosima_find_package(fastcdr 2 REQUIRED)
+eprosima_find_package(fastcdr REQUIRED)
 eprosima_find_thirdparty(Asio asio VERSION 1.10.8)
 eprosima_find_thirdparty(TinyXML2 tinyxml2)
 
@@ -330,9 +310,7 @@ option(SHM_TRANSPORT_DEFAULT "Add SHM transport to the default transports" ON)
 set(LOG_CONSUMER_DEFAULT AUTO CACHE STRING "Selects default LogConsumer")
 set_property(CACHE LOG_CONSUMER_DEFAULT PROPERTY STRINGS AUTO STDOUT STDOUTERR)
 
-if(LOG_CONSUMER_DEFAULT STREQUAL "STDOUT")
-    set(STDOUTERR_LOG_CONSUMER OFF)
-else()
+if(LOG_CONSUMER_DEFAULT STREQUAL "STDOUTERR")
     set(STDOUTERR_LOG_CONSUMER ON)
 endif()
 
@@ -499,7 +477,7 @@ if(BUILD_DOCUMENTATION)
         set(USE_DOT YES)
     endif()
     # Configure the template doxyfile for or specific project
-    configure_file(utils/doxygen/doxyfile.in ${PROJECT_BINARY_DIR}/doxyfile @ONLY IMMEDIATE)
+    configure_file(doxyfile.in ${PROJECT_BINARY_DIR}/doxyfile @ONLY IMMEDIATE)
     # Add custom target to run doxygen when ever the project is build
     add_custom_target(fastdds_doxygen
         COMMAND "${DOXYGEN_EXECUTABLE}" "${PROJECT_BINARY_DIR}/doxyfile"
@@ -519,6 +497,7 @@ if(BUILD_DOCUMENTATION)
         set(README_INSTALL_LOCATION "${DOC_INSTALL_DIR}")
     endif()
 
+    configure_file(doc/README.html.in ${README_LOCATION}/README.html @ONLY IMMEDIATE)
 
     ### ReadTheDocs ########################
     if(NOT CHECK_DOCUMENTATION)
@@ -559,12 +538,12 @@ if(BUILD_DOCUMENTATION)
         add_dependencies(readthedocs fastdds_docdirs)
     endif()
 
-    add_custom_target(fastdds_doc ALL
+    add_custom_target(fastdds_docs ALL
         COMMENT "Generated project documentation" VERBATIM)
 
-    add_dependencies(fastdds_doc fastdds_doxygen)
+    add_dependencies(fastdds_docs fastdds_doxygen)
     if(NOT CHECK_DOCUMENTATION)
-        add_dependencies(fastdds_doc readthedocs)
+        add_dependencies(fastdds_docs readthedocs)
     endif()
 endif()
 
@@ -578,13 +557,13 @@ install(FILES ${PROJECT_SOURCE_DIR}/LICENSE
     )
 
 # Install xml validators
-install(FILES ${PROJECT_SOURCE_DIR}/resources/xsd/fastdds_profiles.xsd
-    DESTINATION ${DATA_INSTALL_DIR}/fastdds
+install(FILES ${PROJECT_SOURCE_DIR}/resources/xsd/fastRTPS_profiles.xsd
+    DESTINATION ${DATA_INSTALL_DIR}
     COMPONENT xsd
     )
 
 install(FILES ${PROJECT_SOURCE_DIR}/resources/xsd/fastdds_static_discovery.xsd
-    DESTINATION ${DATA_INSTALL_DIR}/fastdds
+    DESTINATION ${DATA_INSTALL_DIR}
     COMPONENT xsd
     )
 
@@ -593,8 +572,8 @@ option(INSTALL_EXAMPLES "Install example" OFF)
 if(INSTALL_EXAMPLES)
   # Install examples
   install(DIRECTORY ${PROJECT_SOURCE_DIR}/examples/cpp
-      DESTINATION ${DATA_INSTALL_DIR}/fastdds/examples
-      COMPONENT ${DATA_INSTALL_DIR}/fastdds/examples
+      DESTINATION examples
+      COMPONENT examples
       PATTERN "examples/CMakeLists.txt" EXCLUDE
       )
 endif()
@@ -615,6 +594,11 @@ if(BUILD_DOCUMENTATION)
     # Instalation of doxygen files
     install(DIRECTORY ${PROJECT_BINARY_DIR}/doc/api_reference
         DESTINATION ${DOC_INSTALL_DIR}
+        COMPONENT documentation
+        )
+
+    install(FILES "${README_LOCATION}/README.html"
+        DESTINATION ${README_INSTALL_LOCATION}
         COMPONENT documentation
         )
 

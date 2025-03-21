@@ -16,8 +16,7 @@ message(STATUS "Configuring dynamic network interfaces tests")
 # Find docker
 find_program(DOCKER_EXECUTABLE docker)
 if(NOT DOCKER_EXECUTABLE)
-    message(WARNING "Docker executable not found. dds.communication.dynamic_interfaces test won't be compiled.")
-    return()
+    message(FATAL_ERROR "Docker not found")
 endif()
 
 set(SHELL_EXECUTABLE "")
@@ -29,8 +28,7 @@ if(UNIX AND NOT(APPLE) AND NOT(QNXNTO) AND NOT(ANDROID))
     # Find bash
     find_program(BASH_EXECUTABLE bash)
     if(NOT BASH_EXECUTABLE)
-        message(WARNING "bash executable not found. dds.communication.dynamic_interfaces test won't be compiled.")
-        return()
+        message(FATAL_ERROR "bash not found")
     endif()
 
     set(SHELL_EXECUTABLE ${BASH_EXECUTABLE})
@@ -38,12 +36,11 @@ if(UNIX AND NOT(APPLE) AND NOT(QNXNTO) AND NOT(ANDROID))
 # Windows configurations
 elseif(WIN32)
     # We don't know which docker image to use for Windows yet
-    message(WARNING "Windows not supported yet. dds.communication.dynamic_interfaces test won't be compiled.")
-    return()
+    message(FATAL_ERROR "Windows not supported yet")
+
 # Unsupported platform
 else()
-    message(WARNING "Unsupported platform. dds.communication.dynamic_interfaces test won't be compiled.")
-    return()
+    message(FATAL_ERROR "Unsupported platform")
 endif()
 
 # Configure TinyXML2 library path if installed in user library path

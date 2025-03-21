@@ -14,20 +14,19 @@
 
 #include "BlackboxTests.hpp"
 
-#include <cstdlib>
-#include <memory>
-#include <string>
-#include <thread>
-
 #include <gtest/gtest.h>
 
-#include <fastdds/dds/domain/DomainParticipantFactory.hpp>
+#include <fastrtps/rtps/RTPSDomain.h>
+#include <fastrtps/xmlparser/XMLProfileManager.h>
 #include <fastdds/dds/log/Log.hpp>
-#include <fastdds/LibrarySettings.hpp>
-#include <fastdds/rtps/RTPSDomain.hpp>
 
-using namespace eprosima::fastdds;
-using namespace eprosima::fastdds::rtps;
+#include <thread>
+#include <memory>
+#include <cstdlib>
+#include <string>
+
+using namespace eprosima::fastrtps;
+using namespace eprosima::fastrtps::rtps;
 
 //#define cout "Use Log instead!"
 
@@ -65,9 +64,9 @@ public:
         // conditions related to network packets being lost should not use intraprocess
         // nor datasharing. Setting it off here ensures that intraprocess and
         // datasharing are only tested when required.
-        eprosima::fastdds::LibrarySettings att;
-        att.intraprocess_delivery = eprosima::fastdds::INTRAPROCESS_OFF;
-        eprosima::fastdds::dds::DomainParticipantFactory::get_instance()->set_library_settings(att);
+        LibrarySettingsAttributes att;
+        att.intraprocess_delivery = INTRAPROCESS_OFF;
+        eprosima::fastrtps::xmlparser::XMLProfileManager::library_settings(att);
         enable_datasharing = false;
         use_pull_mode = false;
         use_udpv4 = true;

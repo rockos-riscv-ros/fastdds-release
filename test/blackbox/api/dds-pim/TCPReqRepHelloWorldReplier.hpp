@@ -20,7 +20,7 @@
 #ifndef _TEST_BLACKBOX_TCPReqRepHelloWorldReplier_HPP_
 #define _TEST_BLACKBOX_TCPReqRepHelloWorldReplier_HPP_
 
-#include "../../types/HelloWorldPubSubTypes.hpp"
+#include "../../types/HelloWorldPubSubTypes.h"
 
 #include <fastdds/dds/subscriber/DataReader.hpp>
 #include <fastdds/dds/subscriber/DataReaderListener.hpp>
@@ -137,7 +137,7 @@ public:
     }
 
     void newNumber(
-            eprosima::fastdds::rtps::SampleIdentity sample_identity,
+            eprosima::fastrtps::rtps::SampleIdentity sample_identity,
             uint16_t number);
     void wait_discovery(
             std::chrono::seconds timeout = std::chrono::seconds::zero());

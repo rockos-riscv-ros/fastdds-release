@@ -30,6 +30,8 @@ from pathlib import Path
 class Parser:
     """Discovery server tool parser."""
 
+    __help_message = 'fastdds discovery <discovery-args>\n\n'
+
     def __init__(self, argv):
         """
         Parse the sub-command and dispatch to the appropriate handler.
@@ -41,7 +43,7 @@ class Parser:
 
         try:
             result = subprocess.run(
-                [tool_path, '-h'],
+                [tool_path],
                 stdout=subprocess.PIPE,
                 universal_newlines=True
             )
@@ -50,6 +52,7 @@ class Parser:
                 sys.exit(result.returncode)
 
             if (
+                    len(argv) == 0 or
                     (len(argv) == 1 and argv[0] == '-h') or
                     (len(argv) == 1 and argv[0] == '--help')
                ):
@@ -65,7 +68,9 @@ class Parser:
             pass
 
         except BaseException as e:
-            print('\n fast-discovery-server tool not found!')
+            self.__help_message += str(e)
+            self.__help_message += '\n fast-discovery-server tool not found!'
+            print(self.__help_message)
             sys.exit(1)
 
     def __find_tool_path(self):
@@ -87,13 +92,9 @@ class Parser:
         elif os.name == 'nt':
             ret = tool_path / 'fast-discovery-server.exe'
             if not os.path.exists(ret):
-                exe_files = [f for f in tool_path.glob('*.exe') if re.match(r'fast-discovery-server.*\.exe$', f.name)]
-                if len(exe_files) == 0:
-                    print("Unable to find fast-discovery-server tool. Check installation")
-                elif len(exe_files) == 1:
-                    ret = exe_files[0]
-                else:
-                    print('Multiple candidates for fast-discovery-server.exe. Check installation')
+                ret = tool_path / 'fast-discovery-server.bat'
+                if not os.path.exists(ret):
+                    print('fast-discovery-server tool not installed')
                     sys.exit(1)
         else:
             print(f'{os.name} not supported')

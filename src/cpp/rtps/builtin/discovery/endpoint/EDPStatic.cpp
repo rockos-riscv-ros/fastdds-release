@@ -17,26 +17,27 @@
  *
  */
 
-#include <rtps/builtin/discovery/endpoint/EDPStatic.h>
+#include <fastdds/rtps/builtin/discovery/endpoint/EDPStatic.h>
+#include <fastdds/rtps/builtin/discovery/participant/PDPSimple.h>
+#include <fastrtps/xmlparser/XMLEndpointParser.h>
+
+#include <fastdds/rtps/builtin/data/WriterProxyData.h>
+#include <fastdds/rtps/builtin/data/ReaderProxyData.h>
+#include <fastdds/rtps/builtin/data/ParticipantProxyData.h>
+
+#include <fastdds/rtps/reader/RTPSReader.h>
+#include <fastdds/rtps/writer/RTPSWriter.h>
+
+#include <fastdds/dds/log/Log.hpp>
+
+#include <rtps/participant/RTPSParticipantImpl.h>
 
 #include <mutex>
 #include <sstream>
-
 #include <tinyxml2.h>
 
-#include <fastdds/dds/log/Log.hpp>
-#include <fastdds/rtps/reader/RTPSReader.hpp>
-#include <fastdds/rtps/writer/RTPSWriter.hpp>
-
-#include <rtps/builtin/data/ParticipantProxyData.hpp>
-#include <rtps/builtin/data/ReaderProxyData.hpp>
-#include <rtps/builtin/data/WriterProxyData.hpp>
-#include <rtps/builtin/discovery/participant/PDPSimple.h>
-#include <rtps/participant/RTPSParticipantImpl.hpp>
-#include <xmlparser/XMLEndpointParser.h>
-
 namespace eprosima {
-namespace fastdds {
+namespace fastrtps {
 namespace rtps {
 
 const char* exchange_format_property_name = "dds.discovery.static_edp.exchange_format";
@@ -133,8 +134,7 @@ bool EDPStatic::initEDP(
     }
 
     // Check there is a Participant's property changing the exchange format.
-    auto& properties = mp_RTPSParticipant->get_attributes().properties.properties();
-    for (auto& property : properties)
+    for (auto& property : mp_RTPSParticipant->getAttributes().properties.properties())
     {
         if (0 == property.name().compare(exchange_format_property_name))
         {
@@ -322,7 +322,7 @@ bool EDPStaticProperty::fromProperty(
     return false;
 }
 
-bool EDPStatic::process_reader_proxy_data(
+bool EDPStatic::processLocalReaderProxyData(
         RTPSReader*,
         ReaderProxyData* rdata)
 {
@@ -337,7 +337,7 @@ bool EDPStatic::process_reader_proxy_data(
     return true;
 }
 
-bool EDPStatic::process_writer_proxy_data(
+bool EDPStatic::processLocalWriterProxyData(
         RTPSWriter*,
         WriterProxyData* wdata)
 {
@@ -352,8 +352,8 @@ bool EDPStatic::process_writer_proxy_data(
     return true;
 }
 
-bool EDPStatic::remove_reader(
-        RTPSReader* rtps_reader)
+bool EDPStatic::removeLocalReader(
+        RTPSReader* R)
 {
     std::lock_guard<std::recursive_mutex> guard(*mp_PDP->getMutex());
     ParticipantProxyData* localpdata = this->mp_PDP->getLocalParticipantProxyData();
@@ -363,10 +363,10 @@ bool EDPStatic::remove_reader(
         EDPStaticProperty staticproperty;
         if (staticproperty.fromProperty((*pit).pair()))
         {
-            if (staticproperty.m_entityId == rtps_reader->getGuid().entityId)
+            if (staticproperty.m_entityId == R->getGuid().entityId)
             {
                 auto new_property = EDPStaticProperty::toProperty(exchange_format_, "Reader", "ENDED",
-                                rtps_reader->getAttributes().getUserDefinedID(), rtps_reader->getGuid().entityId);
+                                R->getAttributes().getUserDefinedID(), R->getGuid().entityId);
                 if (!pit->modify(new_property))
                 {
                     EPROSIMA_LOG_ERROR(RTPS_EDP, "Failed to change property <"
@@ -379,8 +379,8 @@ bool EDPStatic::remove_reader(
     return false;
 }
 
-bool EDPStatic::remove_writer(
-        RTPSWriter* rtps_writer)
+bool EDPStatic::removeLocalWriter(
+        RTPSWriter* W)
 {
     std::lock_guard<std::recursive_mutex> guard(*mp_PDP->getMutex());
     ParticipantProxyData* localpdata = this->mp_PDP->getLocalParticipantProxyData();
@@ -390,10 +390,10 @@ bool EDPStatic::remove_writer(
         EDPStaticProperty staticproperty;
         if (staticproperty.fromProperty((*pit).pair()))
         {
-            if (staticproperty.m_entityId == rtps_writer->getGuid().entityId)
+            if (staticproperty.m_entityId == W->getGuid().entityId)
             {
                 auto new_property = EDPStaticProperty::toProperty(exchange_format_, "Writer", "ENDED",
-                                rtps_writer->getAttributes().getUserDefinedID(), rtps_writer->getGuid().entityId);
+                                W->getAttributes().getUserDefinedID(), W->getGuid().entityId);
                 if (!pit->modify(new_property))
                 {
                     EPROSIMA_LOG_ERROR(RTPS_EDP, "Failed to change property <"
@@ -491,7 +491,7 @@ void EDPStatic::assignRemoteEndpoints(
 
 bool EDPStatic::newRemoteReader(
         const GUID_t& participant_guid,
-        const fastcdr::string_255& participant_name,
+        const string_255& participant_name,
         uint16_t user_id,
         EntityId_t ent_id)
 {
@@ -542,7 +542,7 @@ bool EDPStatic::newRemoteReader(
 
 bool EDPStatic::newRemoteWriter(
         const GUID_t& participant_guid,
-        const fastcdr::string_255& participant_name,
+        const string_255& participant_name,
         uint16_t user_id,
         EntityId_t ent_id,
         const GUID_t& persistence_guid)
@@ -621,5 +621,5 @@ bool EDPStatic::checkEntityId(
 }
 
 } /* namespace rtps */
-} /* namespace fastdds */
+} /* namespace fastrtps */
 } /* namespace eprosima */

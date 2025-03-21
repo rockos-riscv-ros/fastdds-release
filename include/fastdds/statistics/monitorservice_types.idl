@@ -74,50 +74,49 @@ module statistics {
     typedef BaseStatus_s InconsistentTopicStatus_s;
     typedef BaseStatus_s SampleLostStatus_s;
 
-    module StatusKind
+    enum StatusKind
     {
-        typedef unsigned long StatusKind;
+        PROXY,
+        CONNECTION_LIST,
+        INCOMPATIBLE_QOS,
+        INCONSISTENT_TOPIC,
+        LIVELINESS_LOST,
+        LIVELINESS_CHANGED,
+        DEADLINE_MISSED,
+        SAMPLE_LOST,
+        STATUSES_SIZE
+    };
 
-        const StatusKind PROXY              = 0;
-        const StatusKind CONNECTION_LIST    = 1;
-        const StatusKind INCOMPATIBLE_QOS   = 2;
-        const StatusKind INCONSISTENT_TOPIC = 3;
-        const StatusKind LIVELINESS_LOST    = 4;
-        const StatusKind LIVELINESS_CHANGED = 5;
-        const StatusKind DEADLINE_MISSED    = 6;
-        const StatusKind SAMPLE_LOST        = 7;
-        const StatusKind STATUSES_SIZE      = 8;
-    }; // module StatusKind
-
-    union MonitorServiceData switch(StatusKind::StatusKind)
+    union MonitorServiceData switch(StatusKind)
     {
-        case StatusKind::PROXY:
+        case PROXY:
             sequence<octet> entity_proxy;
-        case StatusKind::CONNECTION_LIST:
+        case CONNECTION_LIST:
             sequence<Connection> connection_list;
-        case StatusKind::INCOMPATIBLE_QOS:
+        case INCOMPATIBLE_QOS:
             IncompatibleQoSStatus_s incompatible_qos_status;
-        case StatusKind::INCONSISTENT_TOPIC:
+        case INCONSISTENT_TOPIC:
             InconsistentTopicStatus_s inconsistent_topic_status;
-        case StatusKind::LIVELINESS_LOST:
+        case LIVELINESS_LOST:
             LivelinessLostStatus_s liveliness_lost_status;
-        case StatusKind::LIVELINESS_CHANGED:
+        case LIVELINESS_CHANGED:
             LivelinessChangedStatus_s liveliness_changed_status;
-        case StatusKind::DEADLINE_MISSED:
+        case DEADLINE_MISSED:
             DeadlineMissedStatus_s deadline_missed_status;
-        case StatusKind::SAMPLE_LOST:
+        case SAMPLE_LOST:
             SampleLostStatus_s sample_lost_status;
-        case StatusKind::STATUSES_SIZE:
+        case STATUSES_SIZE:
             octet statuses_size;
     };
 
     struct MonitorServiceStatusData
     {
         @Key detail::GUID_s local_entity;
-        @Key StatusKind::StatusKind status_kind;
+        @Key StatusKind status_kind;
         MonitorServiceData value;
     };
 
 }; // namespace statisitcs
 }; // namespace fastdds
 }; // namespace eprosima
+

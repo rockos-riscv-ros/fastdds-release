@@ -19,7 +19,7 @@
 
     usage: test.py <binary_path> <test_name>
 
-    binary_path: Fast DDS binary path
+    binary_path: Fast-DDS binary path
 
     test_name: Test to run.
 
@@ -499,17 +499,6 @@ def test_fast_discovery_backup(fast_discovery_tool):
     sys.exit(exit_code)
 
 
-def test_fast_discovery_no_prefix(fast_discovery_tool):
-    """Test to set a random GUID when no server ID is provided"""
-
-    XML_file_path = "test_xml_discovery_server_profile.xml"
-    command = [fast_discovery_tool, '-x', 'UDP_no_prefix@' + XML_file_path]
-    output, err, exit_code = send_command(command)
-    EXPECTED_OUTPUT = "UDPv4:[127.0.0.5]:11817"
-    exit_code = check_output(output, err, EXPECTED_OUTPUT, False)
-    sys.exit(exit_code)
-
-
 def test_fast_discovery_no_XML(fast_discovery_tool):
     """Test that checks output when the XML file provided does not exist"""
 
@@ -536,6 +525,16 @@ def test_fast_discovery_incorrect_participant(fast_discovery_tool):
     output, err, exit_code = send_command(command)
 
     exit_code = check_output(output, err, "The provided configuration is not valid", True)
+    sys.exit(exit_code)
+
+
+def test_fast_discovery_no_prefix(fast_discovery_tool):
+    """Test failure when no server ID is provided"""
+
+    XML_file_path = "test_wrong_xml_discovery_server_profile.xml"
+    command = [fast_discovery_tool, '-x', 'UDP_no_prefix@' + XML_file_path]
+    output, err, exit_code = send_command(command)
+    exit_code = check_output(output, err, "Server id is mandatory if not defined in the XML file", True)
     sys.exit(exit_code)
 
 
@@ -589,7 +588,7 @@ def test_fast_discovery_security_enabled_xml_prefix(fast_discovery_tool):
         sys.exit(exit_code)
     EXPECTED_OUTPUTS = [
         "Security:           YES",
-        "UDPv4:[127.0.0.1]:32823",
+        "44.53.00.5f.45.50.52.4f.53.49.4d.41",
     ]
     for pattern in EXPECTED_OUTPUTS:
         exit_code = check_output(output, err, pattern, False)
@@ -609,7 +608,7 @@ def test_fast_discovery_security_enabled_cli_prefix(fast_discovery_tool):
         sys.exit(exit_code)
     EXPECTED_OUTPUTS = [
         "Security:           YES",
-        "UDPv4:[127.0.0.1]:32823",
+        "44.53.00.5f.45.50.52.4f.53.49.4d.41",
     ]
     for pattern in EXPECTED_OUTPUTS:
         exit_code = check_output(output, err, pattern, False)
